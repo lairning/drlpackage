@@ -7,8 +7,8 @@ P_MARKER = "?" if DBTYPE == 'sqlite' else "%s"
 
 SQLParamList = lambda n: '' if n <= 0 else (P_MARKER + ',') * (n - 1) + P_MARKER
 
-TRAINER_DB_NAME = "laisim_trainer"
-BACKOFFICE_DB_NAME = "laisim_backoffice"
+TRAINER_DB_NAME = "trainer"
+BACKOFFICE_DB_NAME = "backoffice"
 
 
 def db_connect(db_name: str, check_same_thread=True):

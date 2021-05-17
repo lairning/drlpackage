@@ -1,6 +1,6 @@
 import json
 
-from utils import db_connect, BACKOFFICE_DB_NAME, SQLParamList
+from lairningdecisions.utils.db import db_connect, BACKOFFICE_DB_NAME, SQLParamList
 
 
 def recreate_db():

@@ -1,4 +1,4 @@
-from utils import db_connect
+from lairningdecisions.utils.db import db_connect, TRAINER_DB_NAME
 
 
 def recreate_db(template: str):
@@ -104,5 +104,5 @@ def recreate_db(template: str):
 
 
 if __name__ == "__main__":
-    recreate_db("simpy_template/laisim_trainer")
-    recreate_db("data_template/laisim_trainer")
+    recreate_db("simpy_template/" + TRAINER_DB_NAME)
+    recreate_db("data_template/" + TRAINER_DB_NAME)
