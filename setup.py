@@ -4,8 +4,8 @@ with open("README.md", "r") as fh:
     long_description = fh.read()
 
 setup(
-    name='lairningdecisions',
-    version='0.0.1',
+    name='lairning-decisions',
+    version='0.0.4',
     url='https://github.com/lairning/drlpackage',
     license='MIT License',
     author='md_lairning',
@@ -14,7 +14,7 @@ setup(
     python_requires=">=3.7",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    package_dir = {"": "src"},
+    package_dir={"": "src"},
     packages=find_packages(where="src"),
     classifiers=[
         "Programming Language :: Python :: 3.7",
