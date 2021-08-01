@@ -48,7 +48,7 @@ OBSERVATION_SPACE = Box(low=np.array([0, 0] + [0] * len(cols_to_scale) + [0]),
                         dtype=np.float64)
 
 
-class SimModel():
+class SimModel:
     def __init__(self, config: dict = None, data: pd.DataFrame = None):
         assert data is not None, 'A Data Frame is required'
         self.data = data

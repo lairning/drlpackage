@@ -78,6 +78,7 @@ def launch_trainer(cluster_name: str = None, cloud_provider: str = '', cluster_c
     return trainer_id, result
 
 
+# Get data from the cluster/trainer
 def get_trainer_data(trainer_id: int):
     trainer_name, cloud_provider = _get_trainer_and_cloud(trainer_id=trainer_id)
     if cloud_provider != '':
