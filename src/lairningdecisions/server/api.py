@@ -4,16 +4,18 @@ import sys
 
 import numpy as np
 import pandas as pd
-import ray
-import ray.rllib.agents.ppo as ppo
+
+from lairningdecisions.trainer import SimpyEnv
 from lairningdecisions.utils.db import db_connect, BACKOFFICE_DB_NAME, TRAINER_DB_NAME, P_MARKER, select_record, \
     SQLParamList, select_all
 from lairningdecisions.utils.utils import _get_trainer_and_cloud
+
+import ray
+import ray.rllib.agents.ppo as ppo
 from ray import serve
 from ray.serve import CondaEnv
 from ray.serve.api import Client as ServeClient
 from ray.serve.exceptions import RayServeException
-from simpy_template.simpy_env import SimpyEnv
 from starlette.requests import Request
 
 _SHELL = os.getenv('SHELL')
