@@ -8,7 +8,10 @@ import pandas as pd
 from lairningdecisions.trainer import SimpyEnv
 from lairningdecisions.utils.db import db_connect, BACKOFFICE_DB_NAME, TRAINER_DB_NAME, P_MARKER, select_record, \
     SQLParamList, select_all
-from lairningdecisions.utils.utils import _get_trainer_and_cloud
+from lairningdecisions.utils.utils import _get_trainer_and_cloud, _TRAINER_PATH
+
+from ray.rllib.agents.dqn import DQNTrainer, ApexTrainer
+from ray.rllib.agents.ppo import PPOTrainer, APPOTrainer, DDPPOTrainer
 
 import ray
 import ray.rllib.agents.ppo as ppo
@@ -18,12 +21,17 @@ from ray.serve.api import Client as ServeClient
 from ray.serve.exceptions import RayServeException
 from starlette.requests import Request
 
+import logging
+
+TRAINERS = {'ppo': PPOTrainer, 'appo': APPOTrainer, 'ddpo': DDPPOTrainer, 'dqn': DQNTrainer, 'apex_dqn': ApexTrainer}
+
 _SHELL = os.getenv('SHELL')
 _CONDA_PREFIX = os.getenv('CONDA_PREFIX_1') if 'CONDA_PREFIX_1' in os.environ.keys() else os.getenv('CONDA_PREFIX')
 
 _BACKOFFICE_DB = db_connect(BACKOFFICE_DB_NAME)
-_TRAINER_YAML = lambda cluster_name, cloud_provider: "configs/{}_{}_scaler.yaml".format(cluster_name, cloud_provider)
-_TRAINER_PATH = lambda cluster_name, cloud_provider: "trainer_{}_{}".format(cluster_name, cloud_provider)
+# TODO P1: Clean this code
+# _TRAINER_YAML = lambda cluster_name, cloud_provider: "configs/{}_{}_scaler.yaml".format(cluster_name, cloud_provider)
+# TRAINER_PATH = lambda cluster_name, cloud_provider: "trainer_{}_{}".format(cluster_name, cloud_provider)
 _CMD_PREFIX = ". {}/etc/profile.d/conda.sh && conda activate simpy && ".format(_CONDA_PREFIX)
 _POLICY_SERVER_YAML = lambda cluster_name, cloud_provider: "configs/{}_{}_policy_server.yaml".format(cluster_name,
                                                                                                      cloud_provider)
@@ -97,8 +105,9 @@ def get_policy_run_data(trainer_id: int, sim_config: int = None, baseline: bool 
 
 def deploy_policy(backend_server: ServeClient, trainer_id: int, policy_id: int, policy_config: dict = None):
     class ServeModel:
-        def __init__(self, agent_config: dict, checkpoint_path: str, trainer_path: str, model_name: str):
+        def __init__(self, agent_config: dict, checkpoint_path: str, trainer_path: str, model_name: str, agent_type: str):
 
+            # logging.basicConfig(filename=os.path.expanduser('~')+'/lairning/log.log', level=logging.INFO)
             sim_path = '{}.models.{}'.format(trainer_path, model_name)
             exec_locals = {}
             try:
@@ -111,25 +120,28 @@ def deploy_policy(backend_server: ServeClient, trainer_id: int, policy_id: int, 
 
             agent_config["num_workers"] = 0
             agent_config["env"] = SimpyEnv
-            agent_config["env_config"] = {"n_actions"        : exec_locals['N_ACTIONS'],
+            agent_config["env_config"] = {"n_actions": exec_locals['N_ACTIONS'],
                                           "observation_space": exec_locals['OBSERVATION_SPACE'],
-                                          "sim_model"        : exec_locals['SimModel'],
-                                          "sim_config"       : exec_locals['BASE_CONFIG']}
-            # print(agent_config)
-            # assert agent_config is not None and isinstance(agent_config, dict), \
-            #    "Invalid Agent Config {} when deploying a policy!".format(agent_config)
-            checkpoint_path = trainer_path + checkpoint_path[1:]
-            print(checkpoint_path)
-            # assert checkpoint_path is not None and isinstance(agent_config, str), \
-            #    "Invalid Checkpoint Path {} when deploying a policy!".format(checkpoint_path)
-            self.trainer = ppo.PPOTrainer(config=agent_config)
+                                          "sim_model": exec_locals['SimModel'],
+                                          "sim_config": exec_locals['BASE_CONFIG']}
+
+            checkpoint_path = os.path.expanduser('~')+"/lairning/" + trainer_path + checkpoint_path[1:]
+
+            # logging.info(checkpoint_path)
+
+            trainer_class = TRAINERS[agent_type]
+
+            self.trainer = trainer_class(config=agent_config)
             self.trainer.restore(checkpoint_path)
 
         async def __call__(self, request: Request):
-            json_input = await request.json()
-            obs = json_input["observation"]
-
-            action = self.trainer.compute_action(obs)
+            try:
+                json_input = await request.json()
+                obs = json_input["observation"]
+                action = self.trainer.compute_action(obs)
+            except Exception as e:
+                print(e)
+                raise e
             return {"action": int(action)}
 
     # Get Trainer DB
@@ -137,12 +149,12 @@ def deploy_policy(backend_server: ServeClient, trainer_id: int, policy_id: int, 
     trainer_db = db_connect(_TRAINER_PATH(trainer_name, cloud_provider) + "/" + TRAINER_DB_NAME)
 
     # Get Policy info
-    sql = '''SELECT sim_model.name, policy.checkpoint, policy.agent_config
+    sql = '''SELECT sim_model.name, policy.checkpoint, policy.agent_config, agent_type
              FROM policy INNER JOIN sim_model ON policy.sim_model_id = sim_model.id
              WHERE policy.id = {}'''.format(P_MARKER)
     row = select_record(trainer_db, sql=sql, params=(policy_id,))
     assert row is not None, "Invalid Trainer ID {} and Policy ID {}".format(trainer_id, policy_id)
-    model_name, checkpoint, saved_agent_config = row
+    model_name, checkpoint, saved_agent_config, agent_type = row
     saved_agent_config = json.loads(saved_agent_config)
 
     if policy_config is None:
@@ -150,6 +162,7 @@ def deploy_policy(backend_server: ServeClient, trainer_id: int, policy_id: int, 
     policy_name = "trainer{}_policy{}".format(trainer_id, policy_id)
     trainer_path = _TRAINER_PATH(trainer_name, cloud_provider)
     backend_server.create_backend(policy_name, ServeModel, saved_agent_config, checkpoint, trainer_path, model_name,
+                                  agent_type,
                                   config=policy_config,
                                   ray_actor_options=_POLICY_ACTOR_CONFIG,
                                   env=CondaEnv(_CURRENT_ENV))
@@ -223,9 +236,9 @@ def get_simulator(trainer_id: int, policy_id: int):
     except Exception as e:
         raise e
 
-    env_config = {"n_actions"        : exec_locals['N_ACTIONS'],
+    env_config = {"n_actions": exec_locals['N_ACTIONS'],
                   "observation_space": exec_locals['OBSERVATION_SPACE'],
-                  "sim_model"        : exec_locals['SimModel'],
-                  "sim_config"       : sim_config}
+                  "sim_model": exec_locals['SimModel'],
+                  "sim_config": sim_config}
 
     return SimpyEnv(env_config)

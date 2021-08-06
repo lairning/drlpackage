@@ -105,8 +105,8 @@ class AISimAgent:
     default_config = {
         "num_cpus_per_worker": 1,
         # "batch_mode"         : "complete_episodes",
-        "framework"          : "torch",
-        "log_level"          : "ERROR",
+        "framework": "torch",
+        "log_level": "ERROR",
     }
 
     # https://github.com/miyamotok0105/unity-ml-agents/blob/master/docs/Training-PPO.md
@@ -122,10 +122,12 @@ class AISimAgent:
         self._sim_type = sim_type
         exec_locals = {}
         try:
-            exec(
-                "from data.{} import SimBaseline, N_ACTIONS, OBSERVATION_SPACE, SimModel, BASE_CONFIG".format(
-                    sim_name), {}, exec_locals)
-        except ModuleNotFoundError:
+            folder = {"DATA": 'data', "SIMPY": 'models'}[sim_type]
+            exec("from {}.{} import SimBaseline, N_ACTIONS, OBSERVATION_SPACE, SimModel, BASE_CONFIG".format(
+                    folder, sim_name), {}, exec_locals)
+
+        except ModuleNotFoundError as e:
+            print(e)
             raise Exception(" Model '{}' not found!!".format(sim_name))
         except Exception as e:
             raise e
@@ -163,10 +165,10 @@ class AISimAgent:
 
         # ToDo: P2 Change the Observation Space to a function that receive a Sim Config as a parameter.
         #  In this part of the code it received exec_locals['BASE_CONFIG']
-        self._config["env_config"] = {"n_actions"        : exec_locals['N_ACTIONS'],
+        self._config["env_config"] = {"n_actions": exec_locals['N_ACTIONS'],
                                       "observation_space": exec_locals['OBSERVATION_SPACE'],
-                                      "sim_model"        : exec_locals['SimModel'],
-                                      "sim_config"       : sim_config}
+                                      "sim_model": exec_locals['SimModel'],
+                                      "sim_config": sim_config}
 
         if checkpoint_path is None:
             self.checkpoint_path = self.default_sim_checkpoint_path
