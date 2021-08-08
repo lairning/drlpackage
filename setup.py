@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setup(
     name='lairning-decisions',
-    version='0.0.5',
+    version='0.0.25',
     url='https://github.com/lairning/drlpackage',
     license='MIT License',
     author='md_lairning',
