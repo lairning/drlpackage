@@ -93,16 +93,6 @@ def show_policies():
     return pd.concat(results)
 
 
-# ToDo: P2 complete using the trainer.py code
-def get_training_data(trainer_id: int, sim_config: int = None, baseline: bool = True):
-    pass
-
-
-# ToDo: P2 complete using the trainer.py code
-def get_policy_run_data(trainer_id: int, sim_config: int = None, baseline: bool = True):
-    pass
-
-
 def deploy_policy(backend_server: ServeClient, trainer_id: int, policy_id: int, policy_config: dict = None):
     class ServeModel:
         def __init__(self, agent_config: dict, checkpoint_path: str, trainer_path: str, model_name: str, agent_type: str):
