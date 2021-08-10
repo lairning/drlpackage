@@ -332,6 +332,17 @@ class AISimAgent:
         self.db.commit()
         return cursor.lastrowid
 
+    def _add_policy_kpi_run(self, kpi_run_data: tuple):
+        cursor = self.db.cursor()
+        cursor.execute('''INSERT INTO policy_run_kpi (
+                                        policy_id,
+                                        time_start,
+                                        simulation_id,
+                                        action_step,
+                                        kpis) VALUES ({})'''.format(SQLParamList(5)), kpi_run_data)
+        self.db.commit()
+        return cursor.lastrowid
+
     def _add_baseline_run(self, policy_run_data: tuple):
         cursor = self.db.cursor()
         cursor.execute('''INSERT INTO baseline_run (
@@ -339,7 +350,8 @@ class AISimAgent:
                                         time_start,
                                         simulations,
                                         duration,
-                                        results) VALUES ({})'''.format(SQLParamList(5)), policy_run_data)
+                                        results,
+                                        kpis) VALUES ({})'''.format(SQLParamList(6)), policy_run_data)
         self.db.commit()
         return cursor.lastrowid
 
@@ -569,8 +581,7 @@ class AISimAgent:
                  WHERE sim_model_id = {}'''.format(P_MARKER)
         return pd.read_sql_query(sql, self.db, params=(self._model_id,))
 
-    # ToDo P2: Optimize the evaluation of policies by using Ray Serve and multiple replicas
-    def run_policies(self, policy: [int, list] = None, simulations: int = 1):
+    def _get_policy_data(self, policy: [int, list]):
 
         select_policy_sql = '''SELECT id FROM policy
                                  WHERE sim_model_id = {}'''.format(P_MARKER)
@@ -590,8 +601,13 @@ class AISimAgent:
                                FROM policy INNER JOIN sim_config ON policy.sim_config_id = sim_config.id
                                WHERE policy.id IN ({})'''.format(SQLParamList(len(policies)))
         policy_data = select_all(self.db, sql=select_policy_sql, params=policies)
+        return policy_data
 
-        for policy_id, checkpoint, agent_type, saved_agent_config, saved_sim_config in policy_data:
+
+    # ToDo P2: Optimize the evaluation of policies by using Ray Serve and multiple replicas
+    def run_policies(self, policy: [int, list] = None, simulations: int = 1):
+
+        for policy_id, checkpoint, agent_type, saved_agent_config, saved_sim_config in self._get_policy_data(policy=policy):
 
             print("# Running AI Policy {} started at {}!".format(policy_id, datetime.now()))
 
@@ -623,15 +639,57 @@ class AISimAgent:
                 obs = data_env.reset()
                 while not done:
                     action = agent.compute_action(obs)
-                    obs, reward, done, info = data_env.step(action)
+                    obs, reward, done, _ = data_env.step(action)
                     episode_reward += reward
                 result_list.append(episode_reward)
                 print("# Progress: {:2.1%} ".format((i + 1) / simulations), end="\r")
             policy_run_data = (policy_id, time_start, simulations,
-                               (datetime.now() - time_start).total_seconds(), json.dumps(result_list))
+                               (datetime.now() - time_start).total_seconds(), json.dumps(result_list), json.dumps(kpis_list))
             self._add_policy_run(policy_run_data)
             print("# Progress: {:2.1%} ".format(1))
             print("# Running AI Policy {} ended at {}!".format(policy_id, datetime.now()))
+
+    def generate_policies_kpis(self, policy: [int, list] = None, simulations: int = 1):
+
+        for policy_id, checkpoint, agent_type, saved_agent_config, saved_sim_config in self._get_policy_data(policy=policy):
+
+            print("# KPI Generation for Policy {} started at {}!".format(policy_id, datetime.now()))
+
+            agent_config = self._config.copy()
+            agent_config.update(json.loads(saved_agent_config))
+            agent_config["num_workers"] = 0
+
+            sim_config = json.loads(saved_sim_config)
+
+            trainer_class = TRAINERS[agent_type]
+
+            agent = trainer_class(config=agent_config)
+            agent.restore(checkpoint)
+
+            time_start = datetime.now()
+
+            agent_config["env_config"]["sim_config"].update(sim_config)
+
+            if self._sim_type == "DATA":
+                agent_config["env_config"]["sim_data"] = self.test_data
+                data_env = DataEnv(agent_config["env_config"])
+            else:
+                data_env = SimpyEnv(agent_config["env_config"])
+
+            for i in range(simulations):
+                done = False
+                obs = data_env.reset()
+                action_step = 0
+                while not done:
+                    action = agent.compute_action(obs)
+                    obs, _, done, kpis = data_env.step(action)
+                    action_step +=1
+                    kpi_run_data = (policy_id, time_start, i, action_step, json.dumps(kpis))
+                    self._add_policy_kpi_run(kpi_run_data)
+                print("# Progress: {:2.1%} ".format((i + 1) / simulations), end="\r")
+
+            print("# Progress: {:2.1%} ".format(1))
+            print("# KPI Generation for Policy {} ended at {}!".format(policy_id, datetime.now()))
 
     # Todo: P1 Add Baselines config
     def run_baselines(self, sim_config: [int, list] = None, simulations: int = 1):

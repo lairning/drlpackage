@@ -79,6 +79,7 @@ def recreate_db(template: str):
                     FOREIGN KEY(sim_config_id) REFERENCES sim_config(id)
                     )''')
 
+    # Stores total rewards for a set of simulations of a specific policy
     db.execute('''create table policy_run
                    (id INTEGER PRIMARY KEY,
                     policy_id integer,
@@ -90,7 +91,19 @@ def recreate_db(template: str):
                     FOREIGN KEY(policy_id) REFERENCES policy(id) ON DELETE CASCADE
                     )''')
 
-    # Baseline Runs for Sim Configs
+    # Stores kpis for a simulation of a specific policy
+    db.execute('''create table policy_run_kpi
+                   (id INTEGER PRIMARY KEY,
+                    policy_id integer,
+                    time_start TIMESTAMP,
+                    simulation_id integer,
+                    action_step integer,
+                    kpis json,
+                    other_data json,
+                    FOREIGN KEY(policy_id) REFERENCES policy(id) ON DELETE CASCADE
+                    )''')
+
+    # Stores total rewards for a set of simulations of a specific policy
     db.execute('''create table baseline_run
                    (id INTEGER PRIMARY KEY,
                     sim_config_id integer,
