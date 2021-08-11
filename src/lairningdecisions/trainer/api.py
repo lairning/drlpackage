@@ -1,6 +1,7 @@
 import json
 import sys
 from datetime import datetime
+from typing import Union
 
 import numpy as np
 import pandas as pd
@@ -100,7 +101,7 @@ def my_ray_train(trainer):
     result = trainer.train()
     return result
 
-
+# ToDo P0: Check why backoffice.db is created in the trainer folder 
 class AISimAgent:
     default_config = {
         "num_cpus_per_worker": 1,
@@ -332,16 +333,26 @@ class AISimAgent:
         self.db.commit()
         return cursor.lastrowid
 
-    def _add_policy_kpi_run(self, kpi_run_data: tuple):
+    def _add_policy_run_info(self, run_info: tuple):
+        policy_id, time_start, i, action_step, info = run_info
+        if len(info) == 0:
+            # No info to add
+            return
+        data = []
+        for dic in info:
+            event_type = dic.pop('event_type')
+            data.append((policy_id, time_start, i, action_step, event_type, json.dumps(dic)))
+
         cursor = self.db.cursor()
-        cursor.execute('''INSERT INTO policy_run_kpi (
+        cursor.executemany('''INSERT INTO policy_run_info (
                                         policy_id,
                                         time_start,
                                         simulation_id,
                                         action_step,
-                                        kpis) VALUES ({})'''.format(SQLParamList(5)), kpi_run_data)
+                                        event_type,
+                                        info) VALUES ({})'''.format(SQLParamList(6)), data)
         self.db.commit()
-        return cursor.lastrowid
+        #return cursor.lastrowid
 
     def _add_baseline_run(self, policy_run_data: tuple):
         cursor = self.db.cursor()
@@ -350,8 +361,7 @@ class AISimAgent:
                                         time_start,
                                         simulations,
                                         duration,
-                                        results,
-                                        kpis) VALUES ({})'''.format(SQLParamList(6)), policy_run_data)
+                                        results) VALUES ({})'''.format(SQLParamList(5)), policy_run_data)
         self.db.commit()
         return cursor.lastrowid
 
@@ -507,7 +517,7 @@ class AISimAgent:
                         num_samples=num_samples, local_dir=checkpoint_path, config=agent_config, scheduler=pbt,
                         verbose=verbose)
 
-    def del_training_sessions(self, sessions: [int, list] = None):
+    def del_training_sessions(self, sessions: Union[int, list] = None):
         select_sessions_sql = '''SELECT id FROM training_session
                                  WHERE sim_model_id = {}'''.format(P_MARKER)
         params = (self._model_id,)
@@ -581,7 +591,7 @@ class AISimAgent:
                  WHERE sim_model_id = {}'''.format(P_MARKER)
         return pd.read_sql_query(sql, self.db, params=(self._model_id,))
 
-    def _get_policy_data(self, policy: [int, list]):
+    def _get_policy_data(self, policy: Union[int, list]):
 
         select_policy_sql = '''SELECT id FROM policy
                                  WHERE sim_model_id = {}'''.format(P_MARKER)
@@ -605,7 +615,7 @@ class AISimAgent:
 
 
     # ToDo P2: Optimize the evaluation of policies by using Ray Serve and multiple replicas
-    def run_policies(self, policy: [int, list] = None, simulations: int = 1):
+    def run_policies(self, policy: Union[int, list] = None, simulations: int = 1):
 
         for policy_id, checkpoint, agent_type, saved_agent_config, saved_sim_config in self._get_policy_data(policy=policy):
 
@@ -644,16 +654,16 @@ class AISimAgent:
                 result_list.append(episode_reward)
                 print("# Progress: {:2.1%} ".format((i + 1) / simulations), end="\r")
             policy_run_data = (policy_id, time_start, simulations,
-                               (datetime.now() - time_start).total_seconds(), json.dumps(result_list), json.dumps(kpis_list))
+                               (datetime.now() - time_start).total_seconds(), json.dumps(result_list))
             self._add_policy_run(policy_run_data)
             print("# Progress: {:2.1%} ".format(1))
             print("# Running AI Policy {} ended at {}!".format(policy_id, datetime.now()))
 
-    def generate_policies_kpis(self, policy: [int, list] = None, simulations: int = 1):
+    def generate_policies_info(self, policy: Union[int, list] = None, simulations: int = 1):
 
         for policy_id, checkpoint, agent_type, saved_agent_config, saved_sim_config in self._get_policy_data(policy=policy):
 
-            print("# KPI Generation for Policy {} started at {}!".format(policy_id, datetime.now()))
+            print("# Info Generation for Policy {} started at {}!".format(policy_id, datetime.now()))
 
             agent_config = self._config.copy()
             agent_config.update(json.loads(saved_agent_config))
@@ -682,17 +692,16 @@ class AISimAgent:
                 action_step = 0
                 while not done:
                     action = agent.compute_action(obs)
-                    obs, _, done, kpis = data_env.step(action)
+                    obs, _, done, info = data_env.step(action)
                     action_step +=1
-                    kpi_run_data = (policy_id, time_start, i, action_step, json.dumps(kpis))
-                    self._add_policy_kpi_run(kpi_run_data)
+                    self._add_policy_run_info((policy_id, time_start, i, action_step, info['info']))
                 print("# Progress: {:2.1%} ".format((i + 1) / simulations), end="\r")
 
             print("# Progress: {:2.1%} ".format(1))
-            print("# KPI Generation for Policy {} ended at {}!".format(policy_id, datetime.now()))
+            print("# Info Generation for Policy {} ended at {}!".format(policy_id, datetime.now()))
 
     # Todo: P1 Add Baselines config
-    def run_baselines(self, sim_config: [int, list] = None, simulations: int = 1):
+    def run_baselines(self, sim_config: Union[int, list] = None, simulations: int = 1):
 
         @ray.remote
         def base_run(base):

@@ -91,14 +91,15 @@ def recreate_db(template: str):
                     FOREIGN KEY(policy_id) REFERENCES policy(id) ON DELETE CASCADE
                     )''')
 
-    # Stores kpis for a simulation of a specific policy
-    db.execute('''create table policy_run_kpi
+    # Stores simulation detailed info (events) of a specific policy
+    db.execute('''create table policy_run_info
                    (id INTEGER PRIMARY KEY,
                     policy_id integer,
                     time_start TIMESTAMP,
                     simulation_id integer,
                     action_step integer,
-                    kpis json,
+                    event_type unicode,
+                    info json,
                     other_data json,
                     FOREIGN KEY(policy_id) REFERENCES policy(id) ON DELETE CASCADE
                     )''')

@@ -49,15 +49,11 @@ class SimModel(SimpyModel):
         self.sales_revenue = 0
         self.machine_start_time = {m: -1 for m in MACHINES}  # -1 means it's stopped
         self.machine_product = {m: "" for m in MACHINES}  # "" means no product
-        self.kpis = {'Qtd': {'P1': 0, 'P2': 0, 'P3': 0},
-                     'Duration': {'P1': 0, 'P2': 0, 'P3': 0},
-                     'Revenue': 0, 'Cost': 0
-                     }
+        self.info = []
 
     # Agent gets the state of the environment
     def get_observation(self):
         def time_to_finish(machine):
-            # if self.machine_start_time[machine] == -1:
             if self.machine_product[machine] == "":
                 return 0
             product = self.machine_product[machine]
@@ -93,11 +89,12 @@ class SimModel(SimpyModel):
     def get_reward(self):
         stock_cost = sum([self.stock[p].level * self.sim_config["PRODUCT_REVENUE"][p] * self.sim_config["STOCK_COST"]
                           for p in PRODUCTS])
+        # self.info += [{'event_type':'stock_cost', 'product':p, 'cost':self.stock[p].level * self.sim_config["PRODUCT_REVENUE"][p] * self.sim_config["STOCK_COST"]} for p in PRODUCTS if self.stock[p].level)
         revenue = self.sales_revenue - stock_cost
-        self.kpis['Revenue'] += self.sales_revenue
-        self.kpis['Cost'] += stock_cost
+        info = {'info': self.info }
         self.sales_revenue = 0
-        return revenue, self.done(), self.kpis  # Reward, Done, Info
+        self.info = []
+        return revenue, self.done(), info  # Reward, Done, Info
 
     # Product Schedule definition
     def job_schedule(self, product):
@@ -110,9 +107,10 @@ class SimModel(SimpyModel):
                 if machine == 'M1':
                     start = self.now
                 yield self.timeout(self.sim_config['JOB_DURATION'][machine][product])
+                self.info.append({'event_type':'schedule', 'start_time':start, 'product':product, 'machine':machine, 'start':self.machine_start_time[machine], 'stop':self.now})
                 self.machine_start_time[machine] = -1
                 self.machine_product[machine] = ""
-        self.kpis['Duration'][product] += self.now - start
+        # self.info.append({'event_type':'duration', 'start':start, 'product':product, 'stop':self.now})
         yield self.stock[product].put(1)
 
     # Demand generation model
@@ -121,11 +119,14 @@ class SimModel(SimpyModel):
         for _ in itertools.count():
             yield self.timeout(1)
             amount = np.random.binomial(1, self.sim_config["DEMAND_PROBABILITY"][product])  # Bernouli distribution
-            if amount and self.stock[product].level:
-                yield self.stock[product].get(1)
-                self.sales_revenue += self.sim_config['PRODUCT_REVENUE'][product]
-                self.kpis['Qtd'][product] += 1
-
+            if amount:
+                if self.stock[product].level:
+                    yield self.stock[product].get(1)
+                    self.sales_revenue += self.sim_config['PRODUCT_REVENUE'][product]
+                    # self.info.append({'event_type':'demand_satisfied', 'product':product, 'revenue':self.sim_config['PRODUCT_REVENUE'][product]})
+                else:
+                    pass
+                    # self.info.append({'event_type':'demand_non_satisfied', 'product':product, 'revenue':self.sim_config['PRODUCT_REVENUE'][product]})
 
 # To benchmark the AI Agent Performance
 class SimBaseline:
@@ -138,7 +139,6 @@ class SimBaseline:
         self.sim_config = BASE_CONFIG.copy()
         if sim_config is not None:
             self.sim_config.update(sim_config)
-        self.kpis = dict()
 
     def get_action(self, obs):
         if self.sim.machine_product['M1'] != "":
@@ -160,32 +160,19 @@ class SimBaseline:
             obs = self.sim.get_observation()
             action = self.get_action(obs)
             self.sim.exec_action(action)
-            reward, done, kpis = self.sim.get_reward()
+            reward, done, _ = self.sim.get_reward()
             total_reward += reward
 
-        self.kpis = kpis
         return total_reward
 
 
 # Used for testing the simulator and the baseline
 if __name__ == "__main__":
-    n = 50
-    revenue = 0
-    cost = 0
-    qtd = {'P1': 0, 'P2': 0, 'P3': 0}
-    duration = {'P1': 0, 'P2': 0, 'P3': 0}
+    n = 20
+    total_reward = 0
     for i in range(n):
         baseline = SimBaseline()
-        baseline.run()
-        revenue += baseline.kpis['Revenue']
-        cost += baseline.kpis['Cost']
-        avg_duration = dict()
-        for p in PRODUCTS:
-            qtd[p] += baseline.kpis['Qtd'][p]
-            duration[p] += baseline.kpis['Duration'][p]
-            avg_duration[p] = baseline.kpis['Duration'][p] / baseline.kpis['Qtd'][p]
-        # print("# Revenue={}; Cost={}; Avg Duration={}".format(baseline.kpis['Revenue'],
-        #                                                       baseline.kpis['Cost'], avg_duration))
-    for p in PRODUCTS:
-        avg_duration[p] = duration[p] / qtd[p]
-    print("# TOTAL # Avg Revenue={}; Avg Cost={}; Avg Duration={}".format(revenue / n, cost / n, avg_duration))
+        reward = baseline.run()
+        total_reward += reward
+        # print("# Reward={}".format(reward))
+    print("# TOTAL # Avg Reward={}".format(total_reward / n))
