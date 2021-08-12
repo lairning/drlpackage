@@ -12,6 +12,7 @@ def recreate_db(template: str):
         db.execute("drop table if exists policy")
         db.execute("drop table if exists policy_run")
         db.execute("drop table if exists baseline_run")
+        db.execute("drop table if exists policy_run_info")
 
 
     except Exception as e:
