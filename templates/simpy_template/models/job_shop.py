@@ -5,16 +5,16 @@ from lairningdecisions.trainer import SimpyModel, Box
 
 MACHINES = ['M1', 'M2', 'M3']
 PRODUCTS = ['P1', 'P2', 'P3']
-JOB_DURATION = {'M1': {'P1': 5, 'P2': 3, 'P3': 2},
-                'M2': {'P1': 3, 'P2': 5, 'P3': 2},
-                'M3': {'P1': 3, 'P2': 4, 'P3': 6}}
+JOB_DURATION = {'M1': {'P1': 5, 'P2': 4, 'P3': 2},
+                'M2': {'P1': 3, 'P2': 5, 'P3': 3},
+                'M3': {'P1': 2, 'P2': 3, 'P3': 6}}
 
 # Mandatory
 BASE_CONFIG = {
     "SIM_DURATION": 10 * 60,  # Simulation time in minutes
     "ACTION_INTERVAL": 1,  # Time in minutes between each action
     "JOB_DURATION": JOB_DURATION,
-    "PRODUCT_REVENUE": {'P1': 10, 'P2': 8, 'P3': 5},
+    "PRODUCT_REVENUE": {'P1': 10, 'P2': 5, 'P3': 8},
     "DEMAND_PROBABILITY": {'P1': 1 / 10, 'P2': 1 / 10, 'P3': 1 / 10},
     "STOCK_COST": 0.02
 }
@@ -89,7 +89,8 @@ class SimModel(SimpyModel):
     def get_reward(self):
         stock_cost = sum([self.stock[p].level * self.sim_config["PRODUCT_REVENUE"][p] * self.sim_config["STOCK_COST"]
                           for p in PRODUCTS])
-        # self.info += [{'event_type':'stock_cost', 'product':p, 'cost':self.stock[p].level * self.sim_config["PRODUCT_REVENUE"][p] * self.sim_config["STOCK_COST"]} for p in PRODUCTS if self.stock[p].level)
+        self.info += [{'event_type':'stock_cost', 'product':p, 'cost':self.stock[p].level * self.sim_config["PRODUCT_REVENUE"][p] * self.sim_config["STOCK_COST"]} 
+                        for p in PRODUCTS if self.stock[p].level]
         revenue = self.sales_revenue - stock_cost
         info = {'info': self.info }
         self.sales_revenue = 0
@@ -120,13 +121,11 @@ class SimModel(SimpyModel):
             yield self.timeout(1)
             amount = np.random.binomial(1, self.sim_config["DEMAND_PROBABILITY"][product])  # Bernouli distribution
             if amount:
+                self.info.append({'event_type':'demand', 'satisfied':self.stock[product].level>0, 'product':product, 'revenue':self.sim_config['PRODUCT_REVENUE'][product]})
                 if self.stock[product].level:
                     yield self.stock[product].get(1)
                     self.sales_revenue += self.sim_config['PRODUCT_REVENUE'][product]
-                    # self.info.append({'event_type':'demand_satisfied', 'product':product, 'revenue':self.sim_config['PRODUCT_REVENUE'][product]})
-                else:
-                    pass
-                    # self.info.append({'event_type':'demand_non_satisfied', 'product':product, 'revenue':self.sim_config['PRODUCT_REVENUE'][product]})
+
 
 # To benchmark the AI Agent Performance
 class SimBaseline:
