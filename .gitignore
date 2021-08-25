@@ -18,3 +18,6 @@ templates/simpy_template/models/.ipynb_checkpoints/job_shop-checkpoint.py
 templates/simpy_template/models/.ipynb_checkpoints/traffic_light-checkpoint.py
 templates/_backoffice.ipynb
 .gitignore
+.vscode/settings.json
+dist/*.whl
+dist/*.tar.gz
