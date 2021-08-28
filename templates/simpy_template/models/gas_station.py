@@ -46,8 +46,8 @@ def hot_encode(n, N):
 
 
 N_ACTIONS = 2  # 0 - DoNothing; 1 - Send the Truck
-OBSERVATION_SPACE = Box(low=np.array([0, 0, 0] + [0] * 24),
-                        high=np.array([GAS_STATION_SIZE, PUMP_NUMBER, 1] + [1] * 24),
+OBSERVATION_SPACE = Box(low=np.array([0, 0] + [0] * 24),
+                        high=np.array([GAS_STATION_SIZE, PUMP_NUMBER] + [1] * 24),
                         dtype=np.float64)
 
 
@@ -59,12 +59,12 @@ class SimModel(SimpyModel):
         self.process(self.car_generator(self.gas_station, self.fuel_pump))
         self.actual_revenue = 0
         self.last_revenue = 0
-        self.free_truck = 1
+        # self.free_truck = 1
 
     def get_observation(self):
-        self.run_until_action()
+        # self.run_until_action()
         hour_mask = hot_encode((self.now // 60) % 24, 24)
-        env_status = [self.fuel_pump.level, self.gas_station.count, self.free_truck] + hour_mask
+        env_status = [self.fuel_pump.level, self.gas_station.count] + hour_mask
         return env_status
 
     def get_reward(self):
@@ -75,20 +75,26 @@ class SimModel(SimpyModel):
     # Executes an action
     def exec_action(self, action):
         if action:
-            self.process(self.tank_truck(self.fuel_pump))
+            self.run(until=self.process(self.tank_truck(self.fuel_pump)))
+        else:
+            self.run(until=self.now+self.step_time)
+            
 
     # Process: Gas Tank Refuel by a Tank Truck
     def tank_truck(self, fuel_pump):
         """Arrives at the gas station after a certain delay and refuels it."""
-        self.free_truck = 0
+        #self.free_truck = 0
         yield self.timeout(BASE_CONFIG["TANK_TRUCK_TIME"])
         dprint('Tank truck arriving at time %d' % self.now)
         ammount = fuel_pump.capacity - fuel_pump.level
         dprint('Tank truck refuelling %.1f liters.' % ammount)
         self.actual_revenue -= BASE_CONFIG["TRUCK_COST"]
-        self.free_truck = 1
+        # self.free_truck = 1
         if ammount > 0:
             yield fuel_pump.put(ammount)
+        # Time to go back to the base
+        yield self.timeout(BASE_CONFIG["TANK_TRUCK_TIME"])
+        
 
     # Process: Car Refuel
     def car(self, name, gas_station, fuel_pump):
@@ -143,7 +149,7 @@ class SimBaseline:
             self.sim_config.update(sim_config)
 
     def get_action(self, obs):
-        return obs[0] < self.baseline_config["level"] and obs[2]
+        return obs[0] < self.baseline_config["level"]
 
     def run(self):
         self.sim = SimModel(self.sim_config)
