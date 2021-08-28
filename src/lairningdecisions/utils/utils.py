@@ -9,7 +9,7 @@ _CONDA_PREFIX = os.getenv('CONDA_PREFIX_1') if 'CONDA_PREFIX_1' in os.environ.ke
 #TODO P0: change from YAML to scaler_config
 _TRAINER_YAML = lambda cluster_name, cloud_provider: "configs/{}_{}_scaler.yaml".format(cluster_name, cloud_provider)
 _TRAINER_PATH = lambda cluster_name, cloud_provider: "trainer_{}_{}".format(cluster_name, cloud_provider)
-_CMD_PREFIX = ". {}/etc/profile.d/conda.sh && conda activate simpy && ".format(_CONDA_PREFIX)
+_CMD_PREFIX = ". {}/etc/profile.d/conda.sh && conda activate ray && ".format(_CONDA_PREFIX)
 _POLICY_SERVER_YAML = lambda cluster_name, cloud_provider: "configs/{}_{}_policy_server.yaml".format(cluster_name, cloud_provider)
 
 _POLICY_ACTOR_CONFIG = {'num_cpus': 1}
