@@ -40,7 +40,7 @@ head_node:
         imagePublisher: microsoft-dsvm
         imageOffer: ubuntu-1804
         imageSku: 1804-gen2
-        imageVersion: 21.01.21
+        imageVersion: 21.05.14
 
 # Provider-specific config for worker nodes, e.g. instance type.
 worker_nodes:
@@ -51,20 +51,21 @@ worker_nodes:
         imagePublisher: microsoft-dsvm
         imageOffer: ubuntu-1804
         imageSku: 1804-gen2
-        imageVersion: 21.01.21
+        imageVersion: 21.05.14
         # optionally set priority to use Spot instances
         # priority: Spot
 
 file_mounts: {{
-    '/home/ubuntu/trainer': '~/drl/{}',
+    '/home/ubuntu/trainer': '~/lairning/{}',
 }}
 
 # List of shell commands to run to set up nodes.
 setup_commands:
     - echo 'eval "$(conda shell.bash hook)"' >> ~/.bashrc
     - echo 'conda activate py37_pytorch' >> ~/.bashrc
-    - pip install -U 'ray[rllib]'
+    - pip install -U "ray[rllib]"==1.2.0
     - pip install simpy seaborn
+    - pip install lairning-decisions
 '''
 
 aws_trainer_config_str = '''# An unique identifier for the head node and workers of this cluster.
@@ -115,8 +116,9 @@ file_mounts: {{
 # List of shell commands to run to set up nodes.
 setup_commands:
     - pip install torch=={} -f https://download.pytorch.org/whl/torch_stable.html
-    - pip install -U 'ray[rllib]'
+    - pip install -U "ray[rllib]"==1.2.0
     - pip install simpy seaborn
+    - pip install lairning-decisions
 
 '''
 
@@ -216,9 +218,10 @@ file_mounts: {{
 setup_commands:
     - echo 'eval "$(conda shell.bash hook)"' >> ~/.bashrc
     - echo 'conda activate py37_pytorch' >> ~/.bashrc
-    - pip install -U 'ray[serve]'
-    - pip install -U 'ray[rllib]'
-    - pip install simpy
+    - pip install -U 'ray[serve]'==1.2.0
+    - pip install -U 'ray[rllib]'==1.2.0
+    - pip install simpy seaborn
+    - pip install lairning-decisions
 
 '''
 
@@ -270,9 +273,10 @@ file_mounts: {{
 # List of shell commands to run to set up nodes.
 setup_commands:
     - pip install torch=={} -f https://download.pytorch.org/whl/torch_stable.html
-    - pip install -U 'ray[serve]'
-    - pip install -U 'ray[rllib]'
-    - pip install simpy
+    - pip install -U 'ray[serve]'==1.2.0
+    - pip install -U 'ray[rllib]'==1.2.0
+    - pip install simpy seaborn
+    - pip install lairning-decisions
 
 '''
 
