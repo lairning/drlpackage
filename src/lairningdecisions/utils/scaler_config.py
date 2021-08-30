@@ -62,7 +62,7 @@ file_mounts: {{
 # List of shell commands to run to set up nodes.
 setup_commands:
     - echo 'eval "$(conda shell.bash hook)"' >> ~/.bashrc
-    - echo 'conda activate py37_pytorch' >> ~/.bashrc
+    - echo 'conda activate py38_pytorch' >> ~/.bashrc
     - pip install -U "ray[rllib]"==1.2.0
     - pip install simpy seaborn
     - pip install lairning-decisions
@@ -110,7 +110,7 @@ worker_nodes:
         MarketType: spot
 
 file_mounts: {{
-    '/home/ubuntu/trainer': '~/drl/{}',
+    '/home/ubuntu/trainer': '~/lairning/{}',
 }}
 
 # List of shell commands to run to set up nodes.
@@ -195,7 +195,7 @@ head_node:
         imagePublisher: microsoft-dsvm
         imageOffer: ubuntu-1804
         imageSku: 1804-gen2
-        imageVersion: 21.01.21
+        imageVersion: 21.05.14
 
 # Provider-specific config for worker nodes, e.g. instance type.
 worker_nodes:
@@ -206,18 +206,18 @@ worker_nodes:
         imagePublisher: microsoft-dsvm
         imageOffer: ubuntu-1804
         imageSku: 1804-gen2
-        imageVersion: 21.01.21
+        imageVersion: 21.05.14
         # optionally set priority to use Spot instances
         # priority: Spot
 
 file_mounts: {{
-    '/home/ubuntu/server': '~/drl',
+    '/home/ubuntu/trainer': '~/lairning/{}',
 }}
 
 # List of shell commands to run to set up nodes.
 setup_commands:
     - echo 'eval "$(conda shell.bash hook)"' >> ~/.bashrc
-    - echo 'conda activate py37_pytorch' >> ~/.bashrc
+    - echo 'conda activate py38_pytorch' >> ~/.bashrc
     - pip install -U 'ray[serve]'==1.2.0
     - pip install -U 'ray[rllib]'==1.2.0
     - pip install simpy seaborn
@@ -267,7 +267,7 @@ worker_nodes:
         MarketType: spot
 
 file_mounts: {{
-    '/home/ubuntu/server': '~/drl',
+    '/home/ubuntu/trainer': '~/lairning/{}',
 }}
 
 # List of shell commands to run to set up nodes.
