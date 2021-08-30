@@ -110,6 +110,7 @@ class SimModel(simpy.Environment):
         self.revenue = 0
         self.stock_cost = 0
         self.travel_cost = 0
+        self.info = []
         self.process(self.demand_generator(time_interval = 10))
         for truck in self.trucks:
             truck.event = self.process(self.truck_wait(truck, 0))
@@ -155,8 +156,9 @@ class SimModel(simpy.Environment):
 
     def get_reward(self):
         reward = self.revenue - self.stock_cost - self.travel_cost
-        info = {'revenue':self.revenue, 'stock_cost':self.stock_cost, 'travel_cost':self.travel_cost}
+        info = {'info': self.info }
         self.revenue, self.stock_cost, self.travel_cost = 0, 0, 0
+        self.info = []
         return reward, self.now >= self.sim_duration, info # Reward, done, info
 
     def truck_wait(self, truck: Truck, waiting_time: int):
@@ -169,6 +171,11 @@ class SimModel(simpy.Environment):
         truck.location_type = type_of_location
         truck.location_id = location_id
         truck.arrival_time = self.now + TRAVEL_TIME[(origin,destination)]
+        self.info.append({'event_type':'dispatch',  'origin':origin, 'destination':destination,
+                                                    'start_time': self.now,
+                                                    'travel_time':TRAVEL_TIME[(origin,destination)], 
+                                                    'cost':TRAVEL_TIME[(origin,destination)]*self.sim_config["KM_COST"],
+                                                    'truck': self.trucks.index(truck)} )
         with truck.request() as req:
             yield self.timeout(TRAVEL_TIME[(origin,destination)])
             if location_id == DISTRIBUTION_CENTER_LOCATION:
@@ -185,12 +192,17 @@ class SimModel(simpy.Environment):
             for i, dc in enumerate(self.dc):
                 if dc.level > 0:
                     self.stock_cost += dc.level*self.sim_config["STOCK_COST_UNIT_MINUTE"]*time_interval
+                    self.info.append({'event_type':'stock_cost', 'dc':DISTRIBUTION_CENTERS[i], 'cost':dc.level*self.sim_config["STOCK_COST_UNIT_MINUTE"]*time_interval})
                     amount = demand_sample(i, time_interval)
                     if amount > 0:
+                        demand_lost = 0
                         if dc.level < amount:
+                            demand_lost = amount-dc.level
                             amount = dc.level
                         yield dc.get(amount)
                         self.revenue += amount*self.sim_config["REVENUE_UNIT"]
+                        self.info.append({'event_type':'demand', 'dc':DISTRIBUTION_CENTERS[i], 'satisfied':amount, 'lost':demand_lost, 
+                                                                 'revenue':amount*self.sim_config["REVENUE_UNIT"]})
 
 # Mandatory
 class SimBaseline:
